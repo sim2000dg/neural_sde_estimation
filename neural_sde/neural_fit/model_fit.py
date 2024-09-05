@@ -2,12 +2,13 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import ParameterGrid
 from typing import List
-from ..simulation_sde import milstein_sim, euler_sim
+from ..simulation_sde import milstein_sim, euler_sim, SDECoefficient
 from tqdm import tqdm
+import random
 
 
 def grid_test(
-    coefficient,
+    coefficient: SDECoefficient,
     mc_iterations: int,
     depth_grid: List[int],
     hidden_dim_grid: List[int],
@@ -20,21 +21,28 @@ def grid_test(
     milstein: bool,
 ) -> np.ndarray:
     """
-    Main method for grid search of parameters of the MLP (and its training), using k-fold cross validation.
-    :param coefficient:
-    :param mc_iterations: Number of Monte Carlo iterations.
-    :param depth_grid: The depths of the model to consider.
-    :param hidden_dim_grid: The dimensionalities of the hidden layers to consider.
-    :param scale_noise_grid:
-    :param delta_grid:
-    :param time_horizon_grid:
+    Main method for testing over the chosen grid the generalization of the neural network estimator for
+    the drift coefficient proposed by Koike and Oga (2024)
+    :param coefficient: An instance of the coefficient set characterizing the SDE.
+    :param mc_iterations: Number of Monte Carlo iterations
+     used for approximating the expectation in the risk formulation.
+    :param depth_grid: The depths of the MLP to consider.
+    :param hidden_dim_grid: The dimensionalities of the hidden layers of the MLP to consider.
+    :param scale_noise_grid: The values of the noise scaling to test.
+    :param delta_grid: The values of the time discretization to test.
+    :param time_horizon_grid: The values of the maximum time to consider when testing.
     :param epochs: The epochs for training.
     :param init: Initial value of the SDE.
     :param seed: Seed for the random number generator.
-    :param milstein:
-    :return: The evaluation results for the whole grid search.
+    :param milstein: Whether to use Milstein or Euler-Maruyama.
+    :return: A NumPy array with the simulation results in terms of mean square error w.r.t. the test diffusion
+     for each MC iteration (columns) for each combination of hyperparameters (rows).
     """
+    # This is the generator we use *everywhere*, this makes the generated processes deterministic
     generator = np.random.default_rng(seed)
+    # The two things below make Tensorflow shuffle and weight initialization ops deterministic
+    random.seed(seed)  # Keras weight init uses the standard random module...
+    tf.random.set_seed(seed)
     dict_eval = {
         "depth": depth_grid,
         "hidden_dim": hidden_dim_grid,
@@ -74,7 +82,7 @@ def grid_test(
 
 
 def monte_carlo_evaluation(
-    coefficient,
+    coefficient: SDECoefficient,
     mc_iterations: int,
     depth: int,
     hidden_dim: int,

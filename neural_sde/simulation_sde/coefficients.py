@@ -1,5 +1,32 @@
 import numpy as np
 from typing import List
+from abc import ABC, abstractmethod
+
+
+class SDECoefficient(ABC):
+    @abstractmethod
+    def __call__(self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
+                 ) -> List[np.ndarray]:
+        """
+        Method returning drift, diffusion and - optionally - the derivatives needed for the Milstein scheme: everything
+        is evaluated in a specific point of the process.
+        :param x: The point where the functions are evaluated. Must be a 1D NumPy array of length 2.
+        :param milstein: Boolean indicating whether the external routine calling the method is a Milstein scheme solver.
+        :param scale_noise: A scaling term to decrease/increase the scale of the noise/diffusion term.
+        :return: A list with drift, diffusion and partial derivatives of the diffusion (if needed).
+         The diffusion is returned as a matrix if we are not assuming Milstein, otherwise only the diagonal is returned.
+        """
+        raise NotImplementedError('This is only an abstract class')
+
+    @abstractmethod
+    def drift(self, x: np.ndarray) -> np.ndarray:
+        """
+        Function evaluating the drift for a set of points, passed as an (2, n) NumPy array, with "n"
+        being the number of points.
+        :param x: The array containing the points where to evaluate the drift.
+        :return: The evaluated drift, a (2, n) NumPy array.
+        """
+        raise NotImplementedError('This is only an abstract class')
 
 
 def sigmoid(x):
@@ -7,7 +34,7 @@ def sigmoid(x):
     return out
 
 
-class SinusoidDriftSigmoidDiffusion:
+class SinusoidDriftSigmoidDiffusion(SDECoefficient):
     """
     The coefficient class for a two-dimensional diffusion model satisfying ergodic assumptions. This model has
     a drift having a negative linear component and a sinusoidal one; the diffusion coefficient is a diagonal matrix
@@ -40,13 +67,14 @@ class SinusoidDriftSigmoidDiffusion:
          of the diagonal of the diffusion.
         :param beta_3: The constant term in the diagonal of the diffusion. This needs to be strictly positive.
         """
-        assert (  # Check whether the parameters are valid
+        if not (  # Check whether the parameters are valid
                 alpha_1 > 0
                 and alpha_2 >= 0
                 and alpha_3 >= 0
                 and alpha_4 > 0
                 and abs(beta_3) > 0
-        )
+        ):
+            raise ValueError('Parameterization does not respect the constraints.')
         self.params = {  # Save the parameters
             "alpha_1": alpha_1,
             "alpha_2": alpha_2,
@@ -57,19 +85,12 @@ class SinusoidDriftSigmoidDiffusion:
             "beta_3": beta_3,
         }
 
-    def __call__(  # Call function, this returns everything which is necessary for the simulators to work
+    def __call__(
             self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
     ) -> List[np.ndarray]:
-        """
-        Method returning drift, diffusion and - optionally - the derivatives needed for the Milstein scheme: everything
-         is evaluated in a specific point of the process.
-        :param x: The point where the functions are evaluated. Must be a 1D NumPy array of length 2.
-        :param milstein: Boolean indicating whether the external routine calling the method is a Milstein scheme solver.
-        :param scale_noise: A scaling term to decrease/increase the scale of the noise/diffusion term.
-        :return: A list with drift, diffusion and partial derivatives of the diffusion (if needed).
-         The diffusion is returned as a matrix if we are not assuming Milstein.
-        """
-        assert len(x) == 2  # Check whether input shape is correct
+
+        if len(x) != 2:
+            raise ValueError('This is a 2D coefficient, check the input shape')  # Check whether input shape is correct
 
         # Evaluate drift
         drift = np.array(
@@ -113,12 +134,10 @@ class SinusoidDriftSigmoidDiffusion:
             return drift, diffusion
 
     def drift(self, x: np.ndarray) -> np.ndarray:
-        """
-        Function evaluating the drift for a set of points, passed as an (2, n) NumPy array, with "n"
-         being the number of points.
-        :param x: The array containing the points where to evaluate the drift.
-        :return: The evaluated drift, a (2, n) NumPy array.
-        """
+
+        if len(x) != 2:
+            raise ValueError('This is a 2D coefficient, check the input shape')  # Check whether input shape is correct
+
         out = np.vstack(
             [
                 -self.params["alpha_1"] * x[0, :]

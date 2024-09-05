@@ -1,8 +1,9 @@
 import numpy as np
+from .coefficients import SDECoefficient
 
 
 def euler_sim(
-    coefficient,
+    coefficient: SDECoefficient,
     init: np.ndarray,
     time_horizon: float,
     delta: float,
@@ -12,7 +13,7 @@ def euler_sim(
     """
     Euler-Maruyama SDE solver.
 
-    :param coefficient: An instance of the coefficient set characterizing the SDE:
+    :param coefficient: An instance of the coefficient set characterizing the SDE.
     :param init: Initial value of the SDE.
     :param time_horizon: The value giving the end value of the interval where the SDE is approximated.
     :param delta: Time discretization used by the solvers.
@@ -40,7 +41,7 @@ def euler_sim(
 
 
 def milstein_sim(
-    coefficient,
+    coefficient: SDECoefficient,
     init: np.ndarray,
     time_horizon: float,
     delta: float,
@@ -50,7 +51,7 @@ def milstein_sim(
     """
     Milstein SDE solver assuming diagonal noise.
 
-    :param coefficient: An instance of the coefficient set characterizing the SDE:
+    :param coefficient: An instance of the coefficient set characterizing the SDE.
     :param init: Initial value of the SDE.
     :param time_horizon: The value giving the end value of the interval where the SDE is approximated.
     :param delta: Time discretization used by the solvers.
