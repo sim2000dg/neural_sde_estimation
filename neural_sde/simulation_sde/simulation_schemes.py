@@ -21,15 +21,21 @@ def euler_sim(
     :param scale_noise: Scaling factor increasing/decreasing the impact of the diffusion term in the SDE.
     :return: The time-discrete approximation of the SDE.
     """
-    n_points = int(np.floor(time_horizon / delta))  # Compute actual number of points in the discretization
+    n_points = int(
+        np.floor(time_horizon / delta)
+    )  # Compute actual number of points in the discretization
     dimension = init.shape[0]  # Dimensionality of the vector SDE
 
     # Compute brownian motion increments
     bm_increments = generator.normal(0, np.sqrt(delta), size=(dimension, n_points))
-    process = np.zeros(shape=(dimension, n_points + 1), dtype=np.float64)  # Preallocate discretized process vector
+    process = np.zeros(
+        shape=(dimension, n_points + 1), dtype=np.float64
+    )  # Preallocate discretized process vector
     process[:, 0] = init  # Set the initial value
 
-    for i in range(n_points):  # Sequentially iterate according to the gaussian approximation
+    for i in range(
+        n_points
+    ):  # Sequentially iterate according to the gaussian approximation
         drift, diffusion = coefficient(
             process[:, i], milstein=False, scale_noise=scale_noise
         )  # Get drift and diffusion
@@ -59,15 +65,21 @@ def milstein_sim(
     :param scale_noise: Scaling factor increasing/decreasing the impact of the diffusion term in the SDE.
     :return: The time-discrete approximation of the SDE.
     """
-    n_points = int(np.floor(time_horizon / delta))  # Compute actual number of points in the discretization
+    n_points = int(
+        np.floor(time_horizon / delta)
+    )  # Compute actual number of points in the discretization
     dimension = init.shape[0]  # Dimensionality of the vector SDE
 
     # Compute brownian motion increments
     bm_increments = generator.normal(0, np.sqrt(delta), size=(dimension, n_points))
-    process = np.zeros(shape=(dimension, n_points + 1), dtype=np.float64)  # Preallocate discretized process vector
+    process = np.zeros(
+        shape=(dimension, n_points + 1), dtype=np.float64
+    )  # Preallocate discretized process vector
     process[:, 0] = init  # Set the initial value
 
-    for i in range(n_points):  # Sequentially iterate according to first order Ito-Taylor expansion
+    for i in range(
+        n_points
+    ):  # Sequentially iterate according to first order Ito-Taylor expansion
         drift, diffusion_diag, derivative_diag_diff = coefficient(
             process[:, i], scale_noise=scale_noise
         )  # Get drift and diffusion and needed partial derivatives
@@ -80,6 +92,8 @@ def milstein_sim(
             * diffusion_diag
             * ((bm_increments[:, i] ** 2) - delta)
         )  # Higher order noise: this is what distinguishes Milstein from Euler-Maruyama
-        process[:, i + 1] = process[:, i] + deterministic + noise + higher_order_noise  # Save new point
+        process[:, i + 1] = (
+            process[:, i] + deterministic + noise + higher_order_noise
+        )  # Save new point
 
     return process

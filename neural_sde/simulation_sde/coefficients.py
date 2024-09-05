@@ -5,8 +5,9 @@ from abc import ABC, abstractmethod
 
 class SDECoefficient(ABC):
     @abstractmethod
-    def __call__(self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
-                 ) -> List[np.ndarray]:
+    def __call__(
+        self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
+    ) -> List[np.ndarray]:
         """
         Method returning drift, diffusion and - optionally - the derivatives needed for the Milstein scheme: everything
         is evaluated in a specific point of the process.
@@ -16,7 +17,7 @@ class SDECoefficient(ABC):
         :return: A list with drift, diffusion and partial derivatives of the diffusion (if needed).
          The diffusion is returned as a matrix if we are not assuming Milstein, otherwise only the diagonal is returned.
         """
-        raise NotImplementedError('This is only an abstract class')
+        raise NotImplementedError("This is only an abstract class")
 
     @abstractmethod
     def drift(self, x: np.ndarray) -> np.ndarray:
@@ -26,7 +27,7 @@ class SDECoefficient(ABC):
         :param x: The array containing the points where to evaluate the drift.
         :return: The evaluated drift, a (d, n) NumPy array.
         """
-        raise NotImplementedError('This is only an abstract class')
+        raise NotImplementedError("This is only an abstract class")
 
 
 def sigmoid(x):
@@ -42,14 +43,14 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
     """
 
     def __init__(
-            self,
-            alpha_1: float,
-            alpha_2: float,
-            alpha_3: float,
-            alpha_4: float,
-            beta_1: float,
-            beta_2: float,
-            beta_3: float,
+        self,
+        alpha_1: float,
+        alpha_2: float,
+        alpha_3: float,
+        alpha_4: float,
+        beta_1: float,
+        beta_2: float,
+        beta_3: float,
     ):
         """
         Initialization method for the coefficient class.
@@ -68,13 +69,13 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
         :param beta_3: The constant term in the diagonal of the diffusion. This needs to be strictly positive.
         """
         if not (  # Check whether the parameters are valid
-                alpha_1 > 0
-                and alpha_2 >= 0
-                and alpha_3 >= 0
-                and alpha_4 > 0
-                and abs(beta_3) > 0
+            alpha_1 > 0
+            and alpha_2 >= 0
+            and alpha_3 >= 0
+            and alpha_4 > 0
+            and abs(beta_3) > 0
         ):
-            raise ValueError('Parameterization does not respect the constraints.')
+            raise ValueError("Parameterization does not respect the constraints.")
         self.params = {  # Save the parameters
             "alpha_1": alpha_1,
             "alpha_2": alpha_2,
@@ -86,11 +87,13 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
         }
 
     def __call__(
-            self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
+        self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
     ) -> List[np.ndarray]:
 
         if len(x) != 2:
-            raise ValueError('This is a 2D coefficient, check the input shape')  # Check whether input shape is correct
+            raise ValueError(
+                "This is a 2D coefficient, check the input shape"
+            )  # Check whether input shape is correct
 
         # Evaluate drift
         drift = np.array(
@@ -120,13 +123,15 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                 ]
             )
         else:  # If not milstein with diagonal noise, the diffusion is returned as a matrix
-            diffusion = scale_noise * np.array([
+            diffusion = scale_noise * np.array(
                 [
-                    self.params["beta_1"] * sigmoid(x[0]) + self.params["beta_3"],
-                    0],
-                [0,
-                 self.params["beta_2"] * sigmoid(x[1]) + self.params["beta_3"],
-                 ]])
+                    [self.params["beta_1"] * sigmoid(x[0]) + self.params["beta_3"], 0],
+                    [
+                        0,
+                        self.params["beta_2"] * sigmoid(x[1]) + self.params["beta_3"],
+                    ],
+                ]
+            )
 
         if milstein:
             return drift, diffusion, derivative_diff
@@ -136,7 +141,9 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
     def drift(self, x: np.ndarray) -> np.ndarray:
 
         if len(x) != 2:
-            raise ValueError('This is a 2D coefficient, check the input shape')  # Check whether input shape is correct
+            raise ValueError(
+                "This is a 2D coefficient, check the input shape"
+            )  # Check whether input shape is correct
 
         out = np.vstack(
             [
