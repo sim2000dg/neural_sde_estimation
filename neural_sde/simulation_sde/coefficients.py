@@ -103,7 +103,7 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                 self.params["alpha_3"] * (np.cos(x[0]) + 2)
                 - self.params["alpha_4"] * x[1],
             ],
-            dtype=np.float64,
+            dtype=np.float32,
         )
 
         if milstein:  # Check if milstein
@@ -113,14 +113,16 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                 [
                     self.params["beta_1"] * sigmoid(x[0]) + self.params["beta_3"],
                     self.params["beta_2"] * sigmoid(x[1]) + self.params["beta_3"],
-                ]
+                ],
+                dtype=np.float32,
             )
             # The noise is assumed to be "diagonal": Milstein's scheme only needs these two partial derivatives.
             derivative_diff = scale_noise * np.array(
                 [
                     self.params["beta_1"] * sigmoid(x[0]) * (1 - sigmoid(x[0])),
                     self.params["beta_2"] * sigmoid(x[1]) * (1 - sigmoid(x[1])),
-                ]
+                ],
+                dtype=np.float32,
             )
         else:  # If not milstein with diagonal noise, the diffusion is returned as a matrix
             diffusion = scale_noise * np.array(
@@ -130,7 +132,8 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                         0,
                         self.params["beta_2"] * sigmoid(x[1]) + self.params["beta_3"],
                     ],
-                ]
+                ],
+                dtype=np.float32,
             )
 
         if milstein:
@@ -152,6 +155,6 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                 self.params["alpha_3"] * (np.cos(x[0, :]) + 2)
                 - self.params["alpha_4"] * x[1, :],
             ],
-            dtype=np.float64,
+            dtype=np.float32,
         )
         return out

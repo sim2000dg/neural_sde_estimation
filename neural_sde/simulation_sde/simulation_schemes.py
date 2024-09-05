@@ -29,7 +29,7 @@ def euler_sim(
     # Compute brownian motion increments
     bm_increments = generator.normal(0, np.sqrt(delta), size=(dimension, n_points))
     process = np.zeros(
-        shape=(dimension, n_points + 1), dtype=np.float64
+        shape=(dimension, n_points + 1), dtype=np.float32
     )  # Preallocate discretized process vector
     process[:, 0] = init  # Set the initial value
 
@@ -73,7 +73,7 @@ def milstein_sim(
     # Compute brownian motion increments
     bm_increments = generator.normal(0, np.sqrt(delta), size=(dimension, n_points))
     process = np.zeros(
-        shape=(dimension, n_points + 1), dtype=np.float64
+        shape=(dimension, n_points + 1), dtype=np.float32
     )  # Preallocate discretized process vector
     process[:, 0] = init  # Set the initial value
 

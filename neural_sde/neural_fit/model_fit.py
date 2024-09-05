@@ -1,11 +1,13 @@
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import ParameterGrid
-from typing import List
+from typing import List, Dict, Tuple
 from ..simulation_sde import milstein_sim, euler_sim, SDECoefficient
 from tqdm import tqdm
-import keras
 import random
+import tensorflow.keras as keras
+
+tf.config.set_visible_devices([], "GPU")
 
 
 def grid_test(
@@ -20,7 +22,7 @@ def grid_test(
     init: np.ndarray,
     seed: int,
     milstein: bool,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, List[Dict]]:
     """
     Main method for testing over the chosen grid the generalization of the neural network estimator for
     the drift coefficient proposed by Koike and Oga (2024)
@@ -36,8 +38,9 @@ def grid_test(
     :param init: Initial value of the SDE.
     :param seed: Seed for the random number generator.
     :param milstein: Whether to use Milstein or Euler-Maruyama.
-    :return: A NumPy array with the simulation results in terms of mean square error w.r.t. the test diffusion
-     for each MC iteration (columns) for each combination of hyperparameters (rows).
+    :return: A tuple with a NumPy array with the simulation results in terms of mean square error w.r.t.
+     the test diffusion for each MC iteration (columns) for each combination of hyperparameters (rows).
+     The other element of the tuple is a list with the ordered hyperparameters combinations.
     """
     # This is the generator we use *everywhere*, this makes the generated processes deterministic
     generator = np.random.default_rng(seed)
@@ -76,7 +79,7 @@ def grid_test(
         )
         grid_results[i] = mse_vector  # Save result as specific row
 
-    return grid_results
+    return grid_results, parameter_grid
 
 
 def monte_carlo_evaluation(
@@ -175,7 +178,7 @@ def model_fit_routine(
     dimension = inputs.shape[0]  # Dimensionality of the SDE
     model = keras.Sequential()  # Usual and straightforward Keras Sequential API
     model.add(
-        keras.layers.InputLayer(shape=(dimension,))
+        keras.layers.InputLayer((dimension,))
     )  # The input is a vector with SDE dimensionality
     for layer in range(depth):
         model.add(
@@ -205,13 +208,10 @@ def model_fit_routine(
             bias_constraint=keras.constraints.MaxNorm(max_value=np.sqrt(hidden_dim)),
         )
     )
-    optimizer = (
-        keras.optimizers.Adam()
-    )  # Default Adam, nothing more than this should be needed for this task
 
     model.compile(  # Specify what is needed for training
         loss=keras.losses.MeanSquaredError(),
-        optimizer=optimizer,
+        optimizer=tf.keras.optimizers.legacy.Adam(),
         run_eagerly=False,
         metrics=["mse"],
     )
