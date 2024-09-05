@@ -10,7 +10,7 @@ class SDECoefficient(ABC):
         """
         Method returning drift, diffusion and - optionally - the derivatives needed for the Milstein scheme: everything
         is evaluated in a specific point of the process.
-        :param x: The point where the functions are evaluated. Must be a 1D NumPy array of length 2.
+        :param x: The point where the functions are evaluated. Must be a 1D NumPy array of appropriate length.
         :param milstein: Boolean indicating whether the external routine calling the method is a Milstein scheme solver.
         :param scale_noise: A scaling term to decrease/increase the scale of the noise/diffusion term.
         :return: A list with drift, diffusion and partial derivatives of the diffusion (if needed).
@@ -21,10 +21,10 @@ class SDECoefficient(ABC):
     @abstractmethod
     def drift(self, x: np.ndarray) -> np.ndarray:
         """
-        Function evaluating the drift for a set of points, passed as an (2, n) NumPy array, with "n"
-        being the number of points.
+        Function evaluating the drift for a set of points, passed as a (d, n) NumPy array, with "n"
+        being the number of points and "d" being the SDE dimensionality.
         :param x: The array containing the points where to evaluate the drift.
-        :return: The evaluated drift, a (2, n) NumPy array.
+        :return: The evaluated drift, a (d, n) NumPy array.
         """
         raise NotImplementedError('This is only an abstract class')
 
