@@ -9,6 +9,7 @@ from ..simulation_sde import milstein_sim, euler_sim, SDECoefficient
 from tqdm import tqdm
 import random
 import tensorflow.keras as keras
+import platform
 
 tf.config.set_visible_devices([], "GPU")
 
@@ -232,7 +233,7 @@ def model_fit_routine(
 
     model.compile(  # Specify what is needed for training
         loss=keras.losses.MeanSquaredError(),
-        optimizer=tf.keras.optimizers.legacy.Adam(),
+        optimizer=tf.keras.optimizers.legacy.Adam() if "macOS" in platform.platform() else 'adam',
         run_eagerly=False,
         metrics=["mse"],
     )
