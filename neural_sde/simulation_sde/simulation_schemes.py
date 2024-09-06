@@ -65,9 +65,7 @@ def milstein_sim(
     :param scale_noise: Scaling factor increasing/decreasing the impact of the diffusion term in the SDE.
     :return: The time-discrete approximation of the SDE.
     """
-    n_points = int(
-        np.floor(time_horizon / delta)
-    )  # Compute actual number of points in the discretization
+    n_points = int(time_horizon / delta)  # Compute actual number of points in the discretization
     dimension = init.shape[0]  # Dimensionality of the vector SDE
 
     # Compute brownian motion increments

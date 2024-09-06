@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import ParameterGrid
 from typing import List, Dict, Tuple
+
+from tensorflow.python.framework.errors_impl import InvalidArgumentError
+
 from ..simulation_sde import milstein_sim, euler_sim, SDECoefficient
 from tqdm import tqdm
 import random
@@ -15,8 +18,9 @@ def grid_test(
     mc_iterations: int,
     depth_grid: List[int],
     hidden_dim_grid: List[int],
-    scale_noise_grid: List[int],
-    delta_grid: List[int],
+    scale_noise_grid: List[float],
+    skip_grid: List[float],
+    delta_sim: float,
     time_horizon_grid: List[int],
     epochs: int,
     init: np.ndarray,
@@ -32,7 +36,9 @@ def grid_test(
     :param depth_grid: The depths of the MLP to consider.
     :param hidden_dim_grid: The dimensionalities of the hidden layers of the MLP to consider.
     :param scale_noise_grid: The values of the noise scaling to test.
-    :param delta_grid: The values of the time discretization to test.
+    :param skip_grid: A list of integers that determine the number of points of the simulation skipped
+     between any two points used for the fitting.
+    :param delta_sim: The value of the time discretization for the simulation of the sample path.
     :param time_horizon_grid: The values of the maximum time to consider when testing.
     :param epochs: The epochs for training.
     :param init: Initial value of the SDE.
@@ -42,6 +48,7 @@ def grid_test(
      the test diffusion for each MC iteration (columns) for each combination of hyperparameters (rows).
      The other element of the tuple is a list with the ordered hyperparameters combinations.
     """
+
     # This is the generator we use *everywhere*, this makes the generated processes deterministic
     generator = np.random.default_rng(seed)
     # The two things below make Tensorflow data shuffle and weight initialization ops deterministic
@@ -50,7 +57,7 @@ def grid_test(
     dict_eval = {
         "depth": depth_grid,
         "hidden_dim": hidden_dim_grid,
-        "delta": delta_grid,
+        "skip": skip_grid,
         "time_horizon": time_horizon_grid,
         "scale_noise": scale_noise_grid,
     }
@@ -76,6 +83,7 @@ def grid_test(
             init=init,
             generator=generator,
             tqdm_bar=bar,
+            delta_sim=delta_sim
         )
         grid_results[i] = mse_vector  # Save result as specific row
 
@@ -88,7 +96,8 @@ def monte_carlo_evaluation(
     depth: int,
     hidden_dim: int,
     epochs: int,
-    delta: float,
+    skip: float,
+    delta_sim: float,
     time_horizon: int,
     scale_noise: float,
     init: np.ndarray,
@@ -106,7 +115,8 @@ def monte_carlo_evaluation(
     :param depth: The depths of the MLP to consider.
     :param hidden_dim: The dimensionalities of the hidden layers of the MLP to consider.
     :param scale_noise: The values of the noise scaling to test.
-    :param delta: The values of the time discretization to test.
+    :param skip: skip-1 is the number of points of the simulation skipped between any two points used for the fitting.
+    :param delta_sim: The value of the time discretization for the simulation of the sample path.
     :param time_horizon: The values of the maximum time to consider when testing.
     :param epochs: The epochs for training.
     :param init: Initial value of the SDE.
@@ -124,32 +134,43 @@ def monte_carlo_evaluation(
         # Get approximation of the sample path for the process and its copy
         if milstein:
             process = milstein_sim(
-                coefficient, init, time_horizon, delta, generator, scale_noise
+                coefficient, init, time_horizon, delta_sim, generator, scale_noise
             )
             test_process = milstein_sim(
-                coefficient, init, time_horizon, delta, generator, scale_noise
+                coefficient, init, time_horizon, delta_sim, generator, scale_noise
             )
         else:
             process = euler_sim(
-                coefficient, init, time_horizon, delta, generator, scale_noise
+                coefficient, init, time_horizon, delta_sim, generator, scale_noise
             )
             test_process = euler_sim(
-                coefficient, init, time_horizon, delta, generator, scale_noise
+                coefficient, init, time_horizon, delta_sim, generator, scale_noise
             )
 
         difference_quotients = (
-            np.diff(process) / delta
-        )  # Compute difference quotients which we use to train the model
+            np.diff(process[:, ::skip]) / (delta_sim*skip)
+        )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
         process = process[
-            :, :-1
+            :, :-1:skip
         ]  # We cannot compute any difference quotient at the boundary of the time interval
-        trained = model_fit_routine(
-            process, difference_quotients, depth, hidden_dim, 64, epochs
-        )  # Call the underlying model fit routine to initialize and train the model
+
+        while True:
+            flag_error = False
+            try:
+                trained = model_fit_routine(
+                    process, difference_quotients, depth, hidden_dim, 64, epochs
+                )  # Call the underlying model fit routine to initialize and train the model
+            # Exception handling (there is a bug in Tensorflow graph when using constraints)
+            except InvalidArgumentError:
+                flag_error = True
+            if not flag_error:
+                break
+
+        test_process = test_process[:, ::skip]  # Skip observations for the test process
         # Get the value of the drift at the point of the sample path of the independent copy of the process
         drift_test = coefficient.drift(test_process)
-        # Compute test MSE
-        mse = trained.evaluate(
+
+        mse = trained.evaluate(  # Compute test MSE
             test_process.transpose(), drift_test.transpose(), verbose=0
         )[0]
         result_vector[i] = mse  # Save the value
