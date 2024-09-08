@@ -10,6 +10,7 @@ from tqdm import tqdm
 import random
 import tensorflow.keras as keras
 import platform
+import pandas as pd
 
 tf.config.set_visible_devices([], "GPU")
 
@@ -27,7 +28,7 @@ def grid_test(
     init: np.ndarray,
     seed: int,
     milstein: bool,
-) -> Tuple[np.ndarray, List[Dict]]:
+) -> Tuple[np.ndarray, pd.DataFrame]:
     """
     Main method for testing over the chosen grid the generalization of the neural network estimator for
     the drift coefficient proposed by Koike and Oga (2024)
@@ -47,7 +48,7 @@ def grid_test(
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :return: A tuple with a NumPy array with the simulation results in terms of mean square error w.r.t.
      the test diffusion for each MC iteration (columns) for each combination of hyperparameters (rows).
-     The other element of the tuple is a list with the ordered hyperparameters combinations.
+     The other element of the tuple is a Pandas dataframe with the ordered hyperparameters combinations.
     """
 
     # This is the generator we use *everywhere*, this makes the generated processes deterministic
@@ -88,7 +89,7 @@ def grid_test(
         )
         grid_results[i] = mse_vector  # Save result as specific row
 
-    return grid_results, parameter_grid
+    return grid_results, pd.DataFrame.from_dict(parameter_grid)
 
 
 def monte_carlo_evaluation(
