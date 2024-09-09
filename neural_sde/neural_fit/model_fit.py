@@ -26,6 +26,7 @@ def grid_test(
     time_horizon_grid: List[int],
     epochs: int,
     init: np.ndarray,
+    compact_set: np.ndarray,
     seed: int,
     milstein: bool,
 ) -> Tuple[np.ndarray, pd.DataFrame]:
@@ -44,6 +45,8 @@ def grid_test(
     :param time_horizon_grid: The values of the maximum time to consider when testing.
     :param epochs: The epochs for training.
     :param init: Initial value of the SDE.
+    :param compact_set: The compact set we are estimating the drift in, the cartesian product of the closed intervals
+     given by the endpoints in each row of the array.
     :param seed: Seed for the random number generator.
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :return: A tuple with a NumPy array with the simulation results in terms of mean square error w.r.t.
@@ -83,9 +86,10 @@ def grid_test(
             mc_iterations=mc_iterations,
             milstein=milstein,
             init=init,
+            compact_set=compact_set,
             generator=generator,
             tqdm_bar=bar,
-            delta_sim=delta_sim
+            delta_sim=delta_sim,
         )
         grid_results[i] = mse_vector  # Save result as specific row
 
@@ -103,6 +107,7 @@ def monte_carlo_evaluation(
     time_horizon: int,
     scale_noise: float,
     init: np.ndarray,
+    compact_set: np.ndarray,
     milstein: bool,
     generator: np.random.Generator,
     tqdm_bar: tqdm,
@@ -122,6 +127,8 @@ def monte_carlo_evaluation(
     :param time_horizon: The values of the maximum time to consider when testing.
     :param epochs: The epochs for training.
     :param init: Initial value of the SDE.
+    :param compact_set: The compact set we are estimating the drift in, the cartesian product of the closed intervals
+     given by the endpoints in each row of the array.
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :param generator: NumPy generator for PRNG.
     :param tqdm_bar: Bar object for tqdm; this is needed to update the progress bar with MC iterations.
@@ -149,12 +156,19 @@ def monte_carlo_evaluation(
                 coefficient, init, time_horizon, delta_sim, generator, scale_noise
             )
 
-        difference_quotients = (
-            np.diff(process[:, ::skip]) / (delta_sim*skip)
+        difference_quotients = np.diff(process[:, ::skip]) / (
+            delta_sim * skip
         )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
         process = process[
             :, :-1:skip
         ]  # We cannot compute any difference quotient at the boundary of the time interval
+
+        # Filter the observations w.r.t. the compact set we are considering
+        mask_compact_train = (
+            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
+        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
+        process = process[:, mask_compact_train]
+        difference_quotients = difference_quotients[:, mask_compact_train]
 
         while True:
             flag_error = False
@@ -169,6 +183,12 @@ def monte_carlo_evaluation(
                 break
 
         test_process = test_process[:, ::skip]  # Skip observations for the test process
+        # Disregard observations outside the compact set we are considering
+        test_process = test_process[
+            :,
+            (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
+            & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
+        ]
         # Get the value of the drift at the point of the sample path of the independent copy of the process
         drift_test = coefficient.drift(test_process)
 
@@ -234,7 +254,11 @@ def model_fit_routine(
 
     model.compile(  # Specify what is needed for training
         loss=keras.losses.MeanSquaredError(),
-        optimizer=tf.keras.optimizers.SGD(),
+        optimizer=(
+            tf.keras.optimizers.legacy.SGD()
+            if "macOS" in platform.platform()
+            else "SGD"
+        ),
         run_eagerly=False,
         metrics=["mse"],
     )
