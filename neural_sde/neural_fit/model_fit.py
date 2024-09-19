@@ -170,17 +170,9 @@ def monte_carlo_evaluation(
         process = process[:, mask_compact_train]
         difference_quotients = difference_quotients[:, mask_compact_train]
 
-        while True:
-            flag_error = False
-            try:
-                trained = model_fit_routine(
-                    process, difference_quotients, depth, hidden_dim, 64, epochs
-                )  # Call the underlying model fit routine to initialize and train the model
-            # Exception handling (there is a bug in Tensorflow graph when using constraints)
-            except InvalidArgumentError:
-                flag_error = True
-            if not flag_error:
-                break
+        trained = model_fit_routine(
+            process, difference_quotients, depth, hidden_dim, 64, epochs
+        )  # Call the underlying model fit routine to initialize and train the model
 
         test_process = test_process[:, ::skip]  # Skip observations for the test process
         # Disregard observations outside the compact set we are considering
