@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 class SDECoefficient(ABC):
     @abstractmethod
     def __call__(
-        self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
+            self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
     ) -> List[np.ndarray]:
         """
         Method returning drift, diffusion and - optionally - the derivatives needed for the Milstein scheme: everything
@@ -43,14 +43,14 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
     """
 
     def __init__(
-        self,
-        alpha_1: float,
-        alpha_2: float,
-        alpha_3: float,
-        alpha_4: float,
-        beta_1: float,
-        beta_2: float,
-        beta_3: float,
+            self,
+            alpha_1: float,
+            alpha_2: float,
+            alpha_3: float,
+            alpha_4: float,
+            beta_1: float,
+            beta_2: float,
+            beta_3: float,
     ):
         """
         Initialization method for the coefficient class.
@@ -69,11 +69,11 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
         :param beta_3: The constant term in the diagonal of the diffusion. This needs to be strictly positive.
         """
         if not (  # Check whether the parameters are valid
-            alpha_1 > 0
-            and alpha_2 >= 0
-            and alpha_3 >= 0
-            and alpha_4 > 0
-            and abs(beta_3) > 0
+                alpha_1 > 0
+                and alpha_2 >= 0
+                and alpha_3 >= 0
+                and alpha_4 > 0
+                and abs(beta_3) > 0
         ):
             raise ValueError("Parameterization does not respect the constraints.")
         self.params = {  # Save the parameters
@@ -87,7 +87,7 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
         }
 
     def __call__(
-        self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
+            self, x: np.ndarray, milstein: bool = True, scale_noise: float = 1.0
     ) -> List[np.ndarray]:
 
         if len(x) != 2:

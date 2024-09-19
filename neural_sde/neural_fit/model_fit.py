@@ -174,8 +174,7 @@ def monte_carlo_evaluation(
             flag_error = False
             try:
                 trained = model_fit_routine(
-                    process, difference_quotients, depth, hidden_dim,
-                    64 if process.shape[1] >= 64 * 3 else process.shape[1], epochs
+                    process, difference_quotients, depth, hidden_dim, 64, epochs
                 )  # Call the underlying model fit routine to initialize and train the model
             # Exception handling (there is a bug in Tensorflow graph when using constraints)
             except InvalidArgumentError:

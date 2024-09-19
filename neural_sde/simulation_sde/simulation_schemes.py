@@ -3,12 +3,12 @@ from .coefficients import SDECoefficient
 
 
 def euler_sim(
-    coefficient: SDECoefficient,
-    init: np.ndarray,
-    time_horizon: float,
-    delta: float,
-    generator: np.random.Generator,
-    scale_noise: float = 1.0,
+        coefficient: SDECoefficient,
+        init: np.ndarray,
+        time_horizon: float,
+        delta: float,
+        generator: np.random.Generator,
+        scale_noise: float = 1.0,
 ):
     """
     Euler-Maruyama SDE solver.
@@ -34,7 +34,7 @@ def euler_sim(
     process[:, 0] = init  # Set the initial value
 
     for i in range(
-        n_points
+            n_points
     ):  # Sequentially iterate according to the gaussian approximation
         drift, diffusion = coefficient(
             process[:, i], milstein=False, scale_noise=scale_noise
@@ -47,12 +47,12 @@ def euler_sim(
 
 
 def milstein_sim(
-    coefficient: SDECoefficient,
-    init: np.ndarray,
-    time_horizon: float,
-    delta: float,
-    generator: np.random.Generator,
-    scale_noise: float = 1.0,
+        coefficient: SDECoefficient,
+        init: np.ndarray,
+        time_horizon: float,
+        delta: float,
+        generator: np.random.Generator,
+        scale_noise: float = 1.0,
 ):
     """
     Milstein SDE solver assuming diagonal noise.
@@ -76,7 +76,7 @@ def milstein_sim(
     process[:, 0] = init  # Set the initial value
 
     for i in range(
-        n_points
+            n_points
     ):  # Sequentially iterate according to first order Ito-Taylor expansion
         drift, diffusion_diag, derivative_diag_diff = coefficient(
             process[:, i], scale_noise=scale_noise
@@ -84,14 +84,14 @@ def milstein_sim(
         deterministic = drift * delta  # Deterministic part of the step
         noise = diffusion_diag * bm_increments[:, i]  # Stochastic part of the step
         higher_order_noise = (
-            1
-            / 2
-            * derivative_diag_diff
-            * diffusion_diag
-            * ((bm_increments[:, i] ** 2) - delta)
+                1
+                / 2
+                * derivative_diag_diff
+                * diffusion_diag
+                * ((bm_increments[:, i] ** 2) - delta)
         )  # Higher order noise: this is what distinguishes Milstein from Euler-Maruyama
         process[:, i + 1] = (
-            process[:, i] + deterministic + noise + higher_order_noise
+                process[:, i] + deterministic + noise + higher_order_noise
         )  # Save new point
 
     return process
