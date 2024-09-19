@@ -16,19 +16,19 @@ tf.config.set_visible_devices([], "GPU")
 
 
 def grid_test(
-    coefficient: SDECoefficient,
-    mc_iterations: int,
-    depth_grid: List[int],
-    hidden_dim_grid: List[int],
-    scale_noise_grid: List[float],
-    skip_grid: List[float],
-    delta_sim: float,
-    time_horizon_grid: List[int],
-    epochs: int,
-    init: np.ndarray,
-    compact_set: np.ndarray,
-    seed: int,
-    milstein: bool,
+        coefficient: SDECoefficient,
+        mc_iterations: int,
+        depth_grid: List[int],
+        hidden_dim_grid: List[int],
+        scale_noise_grid: List[float],
+        skip_grid: List[float],
+        delta_sim: float,
+        time_horizon_grid: List[int],
+        epochs: int,
+        init: np.ndarray,
+        compact_set: np.ndarray,
+        seed: int,
+        milstein: bool,
 ) -> Tuple[np.ndarray, pd.DataFrame]:
     """
     Main method for testing over the chosen grid the generalization of the neural network estimator for
@@ -76,7 +76,7 @@ def grid_test(
         shape=(len(parameter_grid), mc_iterations), dtype=np.float64
     )  # Allocate array for results, rows for parameter combinations, columns for Monte Carlo iterates
     for i, parameters in (
-        bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
+            bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
     ):
         bar.set_description(f"Grid iteration {i + 1} of {len(parameter_grid)}")
         mse_vector = monte_carlo_evaluation(  # Call underlying Monte Carlo routine
@@ -97,20 +97,20 @@ def grid_test(
 
 
 def monte_carlo_evaluation(
-    coefficient: SDECoefficient,
-    mc_iterations: int,
-    depth: int,
-    hidden_dim: int,
-    epochs: int,
-    skip: float,
-    delta_sim: float,
-    time_horizon: int,
-    scale_noise: float,
-    init: np.ndarray,
-    compact_set: np.ndarray,
-    milstein: bool,
-    generator: np.random.Generator,
-    tqdm_bar: tqdm,
+        coefficient: SDECoefficient,
+        mc_iterations: int,
+        depth: int,
+        hidden_dim: int,
+        epochs: int,
+        skip: float,
+        delta_sim: float,
+        time_horizon: int,
+        scale_noise: float,
+        init: np.ndarray,
+        compact_set: np.ndarray,
+        milstein: bool,
+        generator: np.random.Generator,
+        tqdm_bar: tqdm,
 ) -> np.ndarray:
     """
     Function for Monte Carlo estimation of the generalization risk for the neural estimator of the drift coefficient,
@@ -157,16 +157,16 @@ def monte_carlo_evaluation(
             )
 
         difference_quotients = np.diff(process[:, ::skip]) / (
-            delta_sim * skip
+                delta_sim * skip
         )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
         process = process[
-            :, :-1:skip
-        ]  # We cannot compute any difference quotient at the boundary of the time interval
+                  :, :-1:skip
+                  ]  # We cannot compute any difference quotient at the boundary of the time interval
 
         # Filter the observations w.r.t. the compact set we are considering
         mask_compact_train = (
-            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
-        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
+                                 np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
+                             ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
         process = process[:, mask_compact_train]
         difference_quotients = difference_quotients[:, mask_compact_train]
 
@@ -174,7 +174,8 @@ def monte_carlo_evaluation(
             flag_error = False
             try:
                 trained = model_fit_routine(
-                    process, difference_quotients, depth, hidden_dim, 64, epochs
+                    process, difference_quotients, depth, hidden_dim,
+                    64 if process.shape[1] >= 64 * 3 else process.shape[1], epochs
                 )  # Call the underlying model fit routine to initialize and train the model
             # Exception handling (there is a bug in Tensorflow graph when using constraints)
             except InvalidArgumentError:
@@ -185,10 +186,10 @@ def monte_carlo_evaluation(
         test_process = test_process[:, ::skip]  # Skip observations for the test process
         # Disregard observations outside the compact set we are considering
         test_process = test_process[
-            :,
-            (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
-            & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
-        ]
+                       :,
+                       (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
+                       & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
+                       ]
         # Get the value of the drift at the point of the sample path of the independent copy of the process
         drift_test = coefficient.drift(test_process)
 
@@ -201,12 +202,12 @@ def monte_carlo_evaluation(
 
 
 def model_fit_routine(
-    inputs: np.ndarray,
-    outputs: np.ndarray,
-    depth: int,
-    hidden_dim: int,
-    batch_size: int,
-    epochs: int,
+        inputs: np.ndarray,
+        outputs: np.ndarray,
+        depth: int,
+        hidden_dim: int,
+        batch_size: int,
+        epochs: int,
 ) -> keras.Model:
     """
     Function to fit a MLP to the provided data, with specified training and model hyperparameters.
