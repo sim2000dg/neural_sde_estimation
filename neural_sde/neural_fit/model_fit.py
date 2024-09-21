@@ -160,8 +160,8 @@ def monte_carlo_evaluation(
                 delta_sim * skip
         )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
         process = process[
-                  :, :-1:skip
-                  ]  # We cannot compute any difference quotient at the boundary of the time interval
+                  :, ::skip
+                  ][:, :-1]  # We cannot compute any difference quotient at the boundary of the time interval
 
         # Filter the observations w.r.t. the compact set we are considering
         mask_compact_train = (
