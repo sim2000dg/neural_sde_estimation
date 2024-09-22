@@ -148,13 +148,20 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
                 "This is a 2D coefficient, check the input shape"
             )  # Check whether input shape is correct
 
-        out = np.vstack(
+        out = np.concatenate(
             [
-                -self.params["alpha_1"] * x[0, :]
-                + self.params["alpha_2"] * (np.sin(x[1, :]) + 2),
-                self.params["alpha_3"] * (np.cos(x[0, :]) + 2)
-                - self.params["alpha_4"] * x[1, :],
+                np.expand_dims(
+                    -self.params["alpha_1"] * x[0, ...]
+                    + self.params["alpha_2"] * (np.sin(x[1, ...]) + 2),
+                    axis=0,
+                ),
+                np.expand_dims(
+                    self.params["alpha_3"] * (np.cos(x[0, ...]) + 2)
+                    - self.params["alpha_4"] * x[1, ...],
+                    axis=0,
+                ),
             ],
+            axis=0,
             dtype=np.float32,
         )
         return out
