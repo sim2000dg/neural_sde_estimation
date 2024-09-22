@@ -148,83 +148,95 @@ def monte_carlo_evaluation(
     for i in range(mc_iterations):  # Iterate over number of Monte Carlo iterations
         tqdm_bar.set_postfix({"MC iteration": i + 1})
         # Get approximation of the sample path for the process and its copy
-        if milstein:
-            process = milstein_sim(
-                coefficient,
-                init,
-                time_horizon,
-                delta_sim,
-                generator,
-                scale_noise,
-                scale_shift_process,
-            )
-            test_process = milstein_sim(
-                coefficient,
-                init,
-                time_horizon,
-                delta_sim,
-                generator,
-                scale_noise,
-                scale_shift_process,
-            )
-        else:
-            process = euler_sim(
-                coefficient,
-                init,
-                time_horizon,
-                delta_sim,
-                generator,
-                scale_noise,
-                scale_shift_process,
-            )
-            test_process = euler_sim(
-                coefficient,
-                init,
-                time_horizon,
-                delta_sim,
-                generator,
-                scale_noise,
-                scale_shift_process,
+        while True:
+            if milstein:
+                process = milstein_sim(
+                    coefficient,
+                    init,
+                    time_horizon,
+                    delta_sim,
+                    generator,
+                    scale_noise,
+                    scale_shift_process,
+                )
+                test_process = milstein_sim(
+                    coefficient,
+                    init,
+                    time_horizon,
+                    delta_sim,
+                    generator,
+                    scale_noise,
+                    scale_shift_process,
+                )
+            else:
+                process = euler_sim(
+                    coefficient,
+                    init,
+                    time_horizon,
+                    delta_sim,
+                    generator,
+                    scale_noise,
+                    scale_shift_process,
+                )
+                test_process = euler_sim(
+                    coefficient,
+                    init,
+                    time_horizon,
+                    delta_sim,
+                    generator,
+                    scale_noise,
+                    scale_shift_process,
+                )
+
+            difference_quotients = np.diff(process[:, ::skip]) / (
+                delta_sim * skip
+            )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
+            process = process[:, ::skip][
+                :, :-1
+            ]  # We cannot compute any difference quotient at the boundary of the time interval
+
+            # Filter the observations w.r.t. the compact set we are considering
+            mask_compact_train = (
+                np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
+            ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
+            process = process[:, mask_compact_train]
+            difference_quotients = difference_quotients[:, mask_compact_train]
+
+            if np.sum(mask_compact_train) <= 2:
+                continue
+
+            trained = model_fit_routine(
+                process, difference_quotients, depth, hidden_dim, 64, epochs
+            )  # Call the underlying model fit routine to initialize and train the model
+
+            test_process = test_process[
+                :, ::skip
+            ]  # Skip observations for the test process
+            # Disregard observations outside the compact set we are considering
+            mask_compact_test = (
+                np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0)
+            ) & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0))
+            test_process = test_process[
+                :,
+                mask_compact_test,
+            ]
+            if np.sum(mask_compact_test) <= 2:
+                continue
+
+            # Get the value of the drift at the point of the sample path of the independent copy of the process
+            drift_test = (
+                coefficient.drift(
+                    test_process / scale_shift_process[:, 0][:, np.newaxis]
+                    - scale_shift_process[:, 1][:, np.newaxis]
+                )
+                * scale_shift_process[:, 0][:, np.newaxis]
             )
 
-        difference_quotients = np.diff(process[:, ::skip]) / (
-            delta_sim * skip
-        )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
-        process = process[:, ::skip][
-            :, :-1
-        ]  # We cannot compute any difference quotient at the boundary of the time interval
-
-        # Filter the observations w.r.t. the compact set we are considering
-        mask_compact_train = (
-            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
-        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
-        process = process[:, mask_compact_train]
-        difference_quotients = difference_quotients[:, mask_compact_train]
-
-        trained = model_fit_routine(
-            process, difference_quotients, depth, hidden_dim, 64, epochs
-        )  # Call the underlying model fit routine to initialize and train the model
-
-        test_process = test_process[:, ::skip]  # Skip observations for the test process
-        # Disregard observations outside the compact set we are considering
-        test_process = test_process[
-            :,
-            (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
-            & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
-        ]
-        # Get the value of the drift at the point of the sample path of the independent copy of the process
-        drift_test = (
-            coefficient.drift(
-                test_process / scale_shift_process[:, 0][:, np.newaxis]
-                - scale_shift_process[:, 1][:, np.newaxis]
-            )
-            * scale_shift_process[:, 0][:, np.newaxis]
-        )
-
-        mse = trained.evaluate(  # Compute test MSE
-            test_process.transpose(), drift_test.transpose(), verbose=0
-        )[0]
-        result_vector[i] = mse  # Save the value
+            mse = trained.evaluate(  # Compute test MSE
+                test_process.transpose(), drift_test.transpose(), verbose=0
+            )[0]
+            result_vector[i] = mse  # Save the value
+            break
 
     return result_vector
 
