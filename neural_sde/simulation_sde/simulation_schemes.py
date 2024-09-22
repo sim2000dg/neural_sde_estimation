@@ -1,14 +1,16 @@
 import numpy as np
 from .coefficients import SDECoefficient
+from typing import Optional
 
 
 def euler_sim(
-        coefficient: SDECoefficient,
-        init: np.ndarray,
-        time_horizon: float,
-        delta: float,
-        generator: np.random.Generator,
-        scale_noise: float = 1.0,
+    coefficient: SDECoefficient,
+    init: np.ndarray,
+    time_horizon: float,
+    delta: float,
+    generator: np.random.Generator,
+    scale_noise: float = 1.0,
+    scale_shift_process: Optional[np.ndarray] = None,
 ):
     """
     Euler-Maruyama SDE solver.
@@ -19,6 +21,8 @@ def euler_sim(
     :param delta: Time discretization used by the solvers.
     :param generator: NumPy random generator to use for PRNG.
     :param scale_noise: Scaling factor increasing/decreasing the impact of the diffusion term in the SDE.
+    :param scale_shift_process: Scale and shift for the whole process, for each component.
+     First column is scale, second is shift.
     :return: The time-discrete approximation of the SDE.
     """
     n_points = int(
@@ -34,7 +38,7 @@ def euler_sim(
     process[:, 0] = init  # Set the initial value
 
     for i in range(
-            n_points
+        n_points
     ):  # Sequentially iterate according to the gaussian approximation
         drift, diffusion = coefficient(
             process[:, i], milstein=False, scale_noise=scale_noise
@@ -43,16 +47,23 @@ def euler_sim(
         noise = diffusion @ bm_increments[:, i]  # Stochastic part of the step
         process[:, i + 1] = process[:, i] + deterministic + noise  # Save new point
 
+    # Scale and shift the process, if needed
+    if scale_shift_process is not None:
+        process = scale_shift_process[:, 0][:, np.newaxis] * (
+            process + scale_shift_process[:, 1][:, np.newaxis]
+        )
+
     return process
 
 
 def milstein_sim(
-        coefficient: SDECoefficient,
-        init: np.ndarray,
-        time_horizon: float,
-        delta: float,
-        generator: np.random.Generator,
-        scale_noise: float = 1.0,
+    coefficient: SDECoefficient,
+    init: np.ndarray,
+    time_horizon: float,
+    delta: float,
+    generator: np.random.Generator,
+    scale_noise: float = 1.0,
+    scale_shift_process: Optional[np.ndarray] = None,
 ):
     """
     Milstein SDE solver assuming diagonal noise.
@@ -63,9 +74,13 @@ def milstein_sim(
     :param delta: Time discretization used by the solvers.
     :param generator: NumPy random generator to use for PRNG.
     :param scale_noise: Scaling factor increasing/decreasing the impact of the diffusion term in the SDE.
+    :param scale_shift_process: Scale and shift for the whole process, for each component.
+     First column is scale, second is shift.
     :return: The time-discrete approximation of the SDE.
     """
-    n_points = int(time_horizon / delta)  # Compute actual number of points in the discretization
+    n_points = int(
+        time_horizon / delta
+    )  # Compute actual number of points in the discretization
     dimension = init.shape[0]  # Dimensionality of the vector SDE
 
     # Compute brownian motion increments
@@ -76,7 +91,7 @@ def milstein_sim(
     process[:, 0] = init  # Set the initial value
 
     for i in range(
-            n_points
+        n_points
     ):  # Sequentially iterate according to first order Ito-Taylor expansion
         drift, diffusion_diag, derivative_diag_diff = coefficient(
             process[:, i], scale_noise=scale_noise
@@ -84,14 +99,20 @@ def milstein_sim(
         deterministic = drift * delta  # Deterministic part of the step
         noise = diffusion_diag * bm_increments[:, i]  # Stochastic part of the step
         higher_order_noise = (
-                1
-                / 2
-                * derivative_diag_diff
-                * diffusion_diag
-                * ((bm_increments[:, i] ** 2) - delta)
+            1
+            / 2
+            * derivative_diag_diff
+            * diffusion_diag
+            * ((bm_increments[:, i] ** 2) - delta)
         )  # Higher order noise: this is what distinguishes Milstein from Euler-Maruyama
         process[:, i + 1] = (
-                process[:, i] + deterministic + noise + higher_order_noise
+            process[:, i] + deterministic + noise + higher_order_noise
         )  # Save new point
+
+    # Scale and shift the process, if needed
+    if scale_shift_process is not None:
+        process = scale_shift_process[:, 0][:, np.newaxis] * (
+            process + scale_shift_process[:, 1][:, np.newaxis]
+        )
 
     return process

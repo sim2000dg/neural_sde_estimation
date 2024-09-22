@@ -16,19 +16,20 @@ tf.config.set_visible_devices([], "GPU")
 
 
 def grid_test(
-        coefficient: SDECoefficient,
-        mc_iterations: int,
-        depth_grid: List[int],
-        hidden_dim_grid: List[int],
-        scale_noise_grid: List[float],
-        skip_grid: List[float],
-        delta_sim: float,
-        time_horizon_grid: List[int],
-        epochs: int,
-        init: np.ndarray,
-        compact_set: np.ndarray,
-        seed: int,
-        milstein: bool,
+    coefficient: SDECoefficient,
+    mc_iterations: int,
+    depth_grid: List[int],
+    hidden_dim_grid: List[int],
+    scale_noise_grid: List[float],
+    skip_grid: List[float],
+    delta_sim: float,
+    time_horizon_grid: List[int],
+    epochs: int,
+    init: np.ndarray,
+    compact_set: np.ndarray,
+    scale_shift_process: np.ndarray,
+    seed: int,
+    milstein: bool,
 ) -> Tuple[np.ndarray, pd.DataFrame]:
     """
     Main method for testing over the chosen grid the generalization of the neural network estimator for
@@ -47,6 +48,8 @@ def grid_test(
     :param init: Initial value of the SDE.
     :param compact_set: The compact set we are estimating the drift in, the cartesian product of the closed intervals
      given by the endpoints in each row of the array.
+    :param scale_shift_process: Scale and shift for the whole process, for each component.
+     First column is scale, second is shift.
     :param seed: Seed for the random number generator.
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :return: A tuple with a NumPy array with the simulation results in terms of mean square error w.r.t.
@@ -76,7 +79,7 @@ def grid_test(
         shape=(len(parameter_grid), mc_iterations), dtype=np.float64
     )  # Allocate array for results, rows for parameter combinations, columns for Monte Carlo iterates
     for i, parameters in (
-            bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
+        bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
     ):
         bar.set_description(f"Grid iteration {i + 1} of {len(parameter_grid)}")
         mse_vector = monte_carlo_evaluation(  # Call underlying Monte Carlo routine
@@ -87,6 +90,7 @@ def grid_test(
             milstein=milstein,
             init=init,
             compact_set=compact_set,
+            scale_shift_process=scale_shift_process,
             generator=generator,
             tqdm_bar=bar,
             delta_sim=delta_sim,
@@ -97,20 +101,21 @@ def grid_test(
 
 
 def monte_carlo_evaluation(
-        coefficient: SDECoefficient,
-        mc_iterations: int,
-        depth: int,
-        hidden_dim: int,
-        epochs: int,
-        skip: float,
-        delta_sim: float,
-        time_horizon: int,
-        scale_noise: float,
-        init: np.ndarray,
-        compact_set: np.ndarray,
-        milstein: bool,
-        generator: np.random.Generator,
-        tqdm_bar: tqdm,
+    coefficient: SDECoefficient,
+    mc_iterations: int,
+    depth: int,
+    hidden_dim: int,
+    epochs: int,
+    skip: float,
+    delta_sim: float,
+    time_horizon: int,
+    scale_noise: float,
+    init: np.ndarray,
+    compact_set: np.ndarray,
+    scale_shift_process: np.ndarray,
+    milstein: bool,
+    generator: np.random.Generator,
+    tqdm_bar: tqdm,
 ) -> np.ndarray:
     """
     Function for Monte Carlo estimation of the generalization risk for the neural estimator of the drift coefficient,
@@ -129,6 +134,8 @@ def monte_carlo_evaluation(
     :param init: Initial value of the SDE.
     :param compact_set: The compact set we are estimating the drift in, the cartesian product of the closed intervals
      given by the endpoints in each row of the array.
+    :param scale_shift_process: Scale and shift for the whole process, for each component.
+     First column is scale, second is shift.
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :param generator: NumPy generator for PRNG.
     :param tqdm_bar: Bar object for tqdm; this is needed to update the progress bar with MC iterations.
@@ -143,30 +150,54 @@ def monte_carlo_evaluation(
         # Get approximation of the sample path for the process and its copy
         if milstein:
             process = milstein_sim(
-                coefficient, init, time_horizon, delta_sim, generator, scale_noise
+                coefficient,
+                init,
+                time_horizon,
+                delta_sim,
+                generator,
+                scale_noise,
+                scale_shift_process,
             )
             test_process = milstein_sim(
-                coefficient, init, time_horizon, delta_sim, generator, scale_noise
+                coefficient,
+                init,
+                time_horizon,
+                delta_sim,
+                generator,
+                scale_noise,
+                scale_shift_process,
             )
         else:
             process = euler_sim(
-                coefficient, init, time_horizon, delta_sim, generator, scale_noise
+                coefficient,
+                init,
+                time_horizon,
+                delta_sim,
+                generator,
+                scale_noise,
+                scale_shift_process,
             )
             test_process = euler_sim(
-                coefficient, init, time_horizon, delta_sim, generator, scale_noise
+                coefficient,
+                init,
+                time_horizon,
+                delta_sim,
+                generator,
+                scale_noise,
+                scale_shift_process,
             )
 
         difference_quotients = np.diff(process[:, ::skip]) / (
-                delta_sim * skip
+            delta_sim * skip
         )  # Compute difference quotients which we use to train the model, use range syntax to skip observations
-        process = process[
-                  :, ::skip
-                  ][:, :-1]  # We cannot compute any difference quotient at the boundary of the time interval
+        process = process[:, ::skip][
+            :, :-1
+        ]  # We cannot compute any difference quotient at the boundary of the time interval
 
         # Filter the observations w.r.t. the compact set we are considering
         mask_compact_train = (
-                                 np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
-                             ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
+            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
+        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
         process = process[:, mask_compact_train]
         difference_quotients = difference_quotients[:, mask_compact_train]
 
@@ -177,12 +208,18 @@ def monte_carlo_evaluation(
         test_process = test_process[:, ::skip]  # Skip observations for the test process
         # Disregard observations outside the compact set we are considering
         test_process = test_process[
-                       :,
-                       (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
-                       & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
-                       ]
+            :,
+            (np.all(test_process <= compact_set[:, 1][:, np.newaxis], axis=0))
+            & (np.all(test_process >= compact_set[:, 0][:, np.newaxis], axis=0)),
+        ]
         # Get the value of the drift at the point of the sample path of the independent copy of the process
-        drift_test = coefficient.drift(test_process)
+        drift_test = (
+            coefficient.drift(
+                test_process / scale_shift_process[:, 0][:, np.newaxis]
+                - scale_shift_process[:, 1][:, np.newaxis]
+            )
+            * scale_shift_process[:, 0][:, np.newaxis]
+        )
 
         mse = trained.evaluate(  # Compute test MSE
             test_process.transpose(), drift_test.transpose(), verbose=0
@@ -193,12 +230,12 @@ def monte_carlo_evaluation(
 
 
 def model_fit_routine(
-        inputs: np.ndarray,
-        outputs: np.ndarray,
-        depth: int,
-        hidden_dim: int,
-        batch_size: int,
-        epochs: int,
+    inputs: np.ndarray,
+    outputs: np.ndarray,
+    depth: int,
+    hidden_dim: int,
+    batch_size: int,
+    epochs: int,
 ) -> keras.Model:
     """
     Function to fit a MLP to the provided data, with specified training and model hyperparameters.
