@@ -296,9 +296,9 @@ def model_fit_routine(
     model.compile(  # Specify what is needed for training
         loss=keras.losses.MeanSquaredError(),
         optimizer=(
-            tf.keras.optimizers.legacy.SGD()
+            tf.keras.optimizers.legacy.Adam()
             if "macOS" in platform.platform()
-            else "SGD"
+            else tf.keras.optimizers.Adam()
         ),
         run_eagerly=False,
         metrics=["mse"],

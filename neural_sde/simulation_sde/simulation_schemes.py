@@ -1,6 +1,7 @@
 import numpy as np
 from .coefficients import SDECoefficient
 from typing import Optional
+from tqdm import tqdm
 
 
 def euler_sim(
@@ -116,3 +117,48 @@ def milstein_sim(
         )
 
     return process
+
+
+def test_compact(
+    coefficient: SDECoefficient,
+    init: np.ndarray,
+    time_horizon: float,
+    delta: float,
+    generator: np.random.Generator,
+    compact_set: np.ndarray,
+    scale_noise: float = 1.0,
+    scale_shift_process: Optional[np.ndarray] = None,
+    milstein: bool = True,
+    mc_iter: int = 100000
+):
+    result_array = np.zeros(mc_iter, np.int32)
+    for i in tqdm(range(mc_iter), total=mc_iter):
+        if milstein:
+            process = milstein_sim(
+                coefficient,
+                init,
+                time_horizon,
+                delta,
+                generator,
+                scale_noise,
+                scale_shift_process,
+            )
+        else:
+            process = euler_sim(
+                coefficient,
+                init,
+                time_horizon,
+                delta,
+                generator,
+                scale_noise,
+                scale_shift_process,
+            )
+
+        mask_compact = (np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)) & (
+            np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0)
+        )
+
+        outside_n = np.sum(mask_compact)
+        result_array[i] = outside_n
+
+    return result_array
