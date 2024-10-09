@@ -283,7 +283,7 @@ def model_fit_routine(
                 ),
             )
         )
-    # Output layer, no activation should be put here!
+    # Output layer
     model.add(
         keras.layers.Dense(
             dimension,

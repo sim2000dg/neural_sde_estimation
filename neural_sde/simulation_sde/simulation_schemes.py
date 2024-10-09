@@ -129,10 +129,27 @@ def test_compact(
     scale_noise: float = 1.0,
     scale_shift_process: Optional[np.ndarray] = None,
     milstein: bool = True,
-    mc_iter: int = 100000
-):
-    result_array = np.zeros(mc_iter, np.int32)
+    mc_iter: int = 1000
+) -> np.ndarray:
+    """
+    Function to Monte Carlo compute the distribution of the number of points of the approximated process that are
+    outside the considered compact set.
+    :param coefficient: An instance of the coefficient set characterizing the SDE.
+    :param init: Initial value of the SDE.
+    :param time_horizon: The value giving the end value of the interval where the SDE is approximated.
+    :param delta: Time discretization used by the solvers.
+    :param generator: NumPy random generator to use for PRNG.
+    :param compact_set: NumPy array for the boundary of compact set we are considering. One row per component.
+    :param scale_noise: The noise scaling to heuristically increase/decrease the noise amount.
+    :param scale_shift_process: Scale and shift for the whole process, for each component.
+    :param milstein: Whether to use Milstein for time-discrete approximation.
+    :param mc_iter: Number of Monte Carlo iterations.
+    :return: A NumPy array with the number of points inside the compact set for each iteration.
+    """
+    result_array = np.zeros(mc_iter, np.int32)  # Allocate array for MC realizations
+
     for i in tqdm(range(mc_iter), total=mc_iter):
+        # Simulate
         if milstein:
             process = milstein_sim(
                 coefficient,
@@ -154,11 +171,12 @@ def test_compact(
                 scale_shift_process,
             )
 
+        # Check number of observations inside compact
         mask_compact = (np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)) & (
             np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0)
         )
 
-        outside_n = np.sum(mask_compact)
-        result_array[i] = outside_n
+        inside_n = np.sum(mask_compact)  # Sum over the boolean mask
+        result_array[i] = inside_n  # Save realization
 
     return result_array
