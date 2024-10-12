@@ -78,11 +78,16 @@ def grid_test(
     grid_results = np.zeros(
         shape=(len(parameter_grid), mc_iterations), dtype=np.float64
     )  # Allocate array for results, rows for parameter combinations, columns for Monte Carlo iterates
+
+    train_grid_results = np.zeros(
+        shape=(len(parameter_grid), mc_iterations), dtype=np.float64
+    )  # Allocate array for results, rows for parameter combinations, columns for Monte Carlo iterates
+
     for i, parameters in (
         bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
     ):
         bar.set_description(f"Grid iteration {i + 1} of {len(parameter_grid)}")
-        mse_vector = monte_carlo_evaluation(  # Call underlying Monte Carlo routine
+        mse_vector, mse_train_vector = monte_carlo_evaluation(  # Call underlying Monte Carlo routine
             **parameters,
             coefficient=coefficient,
             epochs=epochs,
@@ -96,8 +101,9 @@ def grid_test(
             delta_sim=delta_sim,
         )
         grid_results[i] = mse_vector  # Save result as specific row
+        train_grid_results = mse_train_vector
 
-    return grid_results, pd.DataFrame.from_dict(parameter_grid)
+    return grid_results, pd.DataFrame.from_dict(parameter_grid), train_grid_results
 
 
 def monte_carlo_evaluation(
@@ -145,6 +151,11 @@ def monte_carlo_evaluation(
     result_vector = np.zeros(
         mc_iterations, dtype=np.float64
     )  # Allocate vector for MSEs
+
+    result_vector_train = np.zeros(
+        mc_iterations, dtype=np.float64
+    )  # Allocate vector for train MSEs
+
     for i in range(mc_iterations):  # Iterate over number of Monte Carlo iterations
         tqdm_bar.set_postfix({"MC iteration": i + 1})
         # Get approximation of the sample path for the process and its copy
@@ -236,9 +247,13 @@ def monte_carlo_evaluation(
                 test_process.transpose(), drift_test.transpose(), verbose=0
             )[0]
             result_vector[i] = mse  # Save the value
+            mse_train = trained.evaluate(  # Compute train MSE
+                process.transpose(), difference_quotients.transpose(), verbose=0
+            )[0]
+            result_vector_train[i] = mse_train  # Save train MSE
             break
 
-    return result_vector
+    return result_vector, result_vector_train
 
 
 def model_fit_routine(
