@@ -101,7 +101,7 @@ def grid_test(
             delta_sim=delta_sim,
         )
         grid_results[i] = mse_vector  # Save result as specific row
-        train_grid_results = mse_train_vector
+        train_grid_results[i] = mse_train_vector  # Save train result as specific row
 
     return grid_results, pd.DataFrame.from_dict(parameter_grid), train_grid_results
 
@@ -243,12 +243,20 @@ def monte_carlo_evaluation(
                 * scale_shift_process[:, 0][:, np.newaxis]
             )
 
+            drift_train = (  # Get actual drift for training trajectory
+                coefficient.drift(
+                    process / scale_shift_process[:, 0][:, np.newaxis]
+                    - scale_shift_process[:, 1][:, np.newaxis]
+                )
+                * scale_shift_process[:, 0][:, np.newaxis]
+            )
+
             mse = trained.evaluate(  # Compute test MSE
                 test_process.transpose(), drift_test.transpose(), verbose=0
             )[0]
             result_vector[i] = mse  # Save the value
             mse_train = trained.evaluate(  # Compute train MSE
-                process.transpose(), difference_quotients.transpose(), verbose=0
+                process.transpose(), drift_train.transpose(), verbose=0
             )[0]
             result_vector_train[i] = mse_train  # Save train MSE
             break
