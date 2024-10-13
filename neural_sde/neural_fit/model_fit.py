@@ -3,8 +3,6 @@ import tensorflow as tf
 from sklearn.model_selection import ParameterGrid
 from typing import List, Dict, Tuple
 
-from tensorflow.python.framework.errors_impl import InvalidArgumentError
-
 from ..simulation_sde import milstein_sim, euler_sim, SDECoefficient
 from tqdm import tqdm
 import random
@@ -30,7 +28,7 @@ def grid_test(
     scale_shift_process: np.ndarray,
     seed: int,
     milstein: bool,
-) -> Tuple[np.ndarray, pd.DataFrame]:
+) -> Tuple[np.ndarray, pd.DataFrame, np.ndarray]:
     """
     Main method for testing over the chosen grid the generalization of the neural network estimator for
     the drift coefficient proposed by Koike and Oga (2024)
@@ -55,6 +53,7 @@ def grid_test(
     :return: A tuple with a NumPy array with the simulation results in terms of mean square error w.r.t.
      the test diffusion for each MC iteration (columns) for each combination of hyperparameters (rows).
      The other element of the tuple is a Pandas dataframe with the ordered hyperparameters combinations.
+     A corresponding array for train MSE and MSE on difference quotients is also returned.
     """
 
     # This is the generator we use *everywhere*, this makes the generated processes deterministic
@@ -81,27 +80,36 @@ def grid_test(
 
     train_grid_results = np.zeros(
         shape=(len(parameter_grid), mc_iterations), dtype=np.float64
-    )  # Allocate array for results, rows for parameter combinations, columns for Monte Carlo iterates
+    )  # Allocate array for train results
+
+    quotients_grid_results = np.zeros(
+        shape=(len(parameter_grid), mc_iterations), dtype=np.float64
+    )  # Allocate array for train error on difference quotients
 
     for i, parameters in (
         bar := tqdm(enumerate(parameter_grid), total=len(parameter_grid))
     ):
         bar.set_description(f"Grid iteration {i + 1} of {len(parameter_grid)}")
-        mse_vector, mse_train_vector = monte_carlo_evaluation(  # Call underlying Monte Carlo routine
-            **parameters,
-            coefficient=coefficient,
-            epochs=epochs,
-            mc_iterations=mc_iterations,
-            milstein=milstein,
-            init=init,
-            compact_set=compact_set,
-            scale_shift_process=scale_shift_process,
-            generator=generator,
-            tqdm_bar=bar,
-            delta_sim=delta_sim,
+        mse_vector, mse_train_vector, mse_quotients_vector = (
+            monte_carlo_evaluation(  # Call underlying Monte Carlo routine
+                **parameters,
+                coefficient=coefficient,
+                epochs=epochs,
+                mc_iterations=mc_iterations,
+                milstein=milstein,
+                init=init,
+                compact_set=compact_set,
+                scale_shift_process=scale_shift_process,
+                generator=generator,
+                tqdm_bar=bar,
+                delta_sim=delta_sim,
+            )
         )
         grid_results[i] = mse_vector  # Save result as specific row
         train_grid_results[i] = mse_train_vector  # Save train result as specific row
+        quotients_grid_results[i] = (
+            mse_quotients_vector  # Save results for MSE on quotients
+        )
 
     return grid_results, pd.DataFrame.from_dict(parameter_grid), train_grid_results
 
@@ -122,7 +130,7 @@ def monte_carlo_evaluation(
     milstein: bool,
     generator: np.random.Generator,
     tqdm_bar: tqdm,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Function for Monte Carlo estimation of the generalization risk for the neural estimator of the drift coefficient,
     given experiment, training and model hyperparameters.
@@ -145,7 +153,7 @@ def monte_carlo_evaluation(
     :param milstein: Whether to use Milstein or Euler-Maruyama.
     :param generator: NumPy generator for PRNG.
     :param tqdm_bar: Bar object for tqdm; this is needed to update the progress bar with MC iterations.
-    :return: A vector of mean squared errors, one for each Monte Carlo iteration.
+    :return: Vectors of mean squared errors (test, train, difference quotients), one for each Monte Carlo iteration.
     """
 
     result_vector = np.zeros(
@@ -155,6 +163,10 @@ def monte_carlo_evaluation(
     result_vector_train = np.zeros(
         mc_iterations, dtype=np.float64
     )  # Allocate vector for train MSEs
+
+    result_vector_quotients = np.zeros(
+        mc_iterations, dtype=np.float64
+    )  # Allocate vector for train MSEs on difference quotients
 
     for i in range(mc_iterations):  # Iterate over number of Monte Carlo iterations
         tqdm_bar.set_postfix({"MC iteration": i + 1})
@@ -253,15 +265,22 @@ def monte_carlo_evaluation(
 
             mse = trained.evaluate(  # Compute test MSE
                 test_process.transpose(), drift_test.transpose(), verbose=0
-            )[0]
+            )[1]
             result_vector[i] = mse  # Save the value
+
             mse_train = trained.evaluate(  # Compute train MSE
                 process.transpose(), drift_train.transpose(), verbose=0
-            )[0]
+            )[1]
             result_vector_train[i] = mse_train  # Save train MSE
+
+            mse_quotients = trained.evaluate(  # Compute train MSE on difference quotients
+                process.transpose(), difference_quotients.transpose(), verbose=0
+            )[1]
+            result_vector_quotients[i] = mse_quotients  # Save MSE on difference quotients
+
             break
 
-    return result_vector, result_vector_train
+    return result_vector, result_vector_train, result_vector_quotients
 
 
 def model_fit_routine(
