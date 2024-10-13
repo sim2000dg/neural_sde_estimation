@@ -111,7 +111,12 @@ def grid_test(
             mse_quotients_vector  # Save results for MSE on quotients
         )
 
-    return grid_results, pd.DataFrame.from_dict(parameter_grid), train_grid_results
+    return (
+        grid_results,
+        pd.DataFrame.from_dict(parameter_grid),
+        train_grid_results,
+        quotients_grid_results,
+    )
 
 
 def monte_carlo_evaluation(
@@ -273,10 +278,14 @@ def monte_carlo_evaluation(
             )[1]
             result_vector_train[i] = mse_train  # Save train MSE
 
-            mse_quotients = trained.evaluate(  # Compute train MSE on difference quotients
-                process.transpose(), difference_quotients.transpose(), verbose=0
-            )[1]
-            result_vector_quotients[i] = mse_quotients  # Save MSE on difference quotients
+            mse_quotients = (
+                trained.evaluate(  # Compute train MSE on difference quotients
+                    process.transpose(), difference_quotients.transpose(), verbose=0
+                )[1]
+            )
+            result_vector_quotients[i] = (
+                mse_quotients  # Save MSE on difference quotients
+            )
 
             break
 
