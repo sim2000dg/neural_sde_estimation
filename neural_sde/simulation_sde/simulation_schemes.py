@@ -148,7 +148,7 @@ def test_compact(
     :return: A NumPy array with the number of points inside the compact set for each iteration.
     """
     result_array = np.zeros(mc_iter, np.int32)  # Allocate array for MC realizations
-    deviations = np.zeros((mc_iter, 5, 2), np.float64)
+    deviations = np.zeros((mc_iter, 6, 2), np.float64)
 
     for i in tqdm(range(mc_iter), total=mc_iter):
         # Simulate
@@ -178,7 +178,7 @@ def test_compact(
                            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
                        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
 
-        for j, skip in enumerate([200, 100, 50, 20, 10]):
+        for j, skip in enumerate([200, 100, 50, 20, 10, 5]):
             evaluated_drift = (
                                       coefficient.drift(
                                           process[:, ::skip] / scale_shift_process[:, 0][:, np.newaxis]

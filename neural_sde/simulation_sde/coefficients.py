@@ -74,6 +74,8 @@ class SinusoidDriftSigmoidDiffusion(SDECoefficient):
             and alpha_3 >= 0
             and alpha_4 > 0
             and abs(beta_3) > 0
+            and abs(beta_1) >= 0
+            and abs(beta_2) >= 0
         ):
             raise ValueError("Parameterization does not respect the constraints.")
         self.params = {  # Save the parameters
