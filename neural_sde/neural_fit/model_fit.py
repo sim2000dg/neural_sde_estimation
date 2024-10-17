@@ -340,7 +340,7 @@ def model_fit_routine(
             dimension,
             kernel_initializer="he_normal",
             kernel_constraint=keras.constraints.MaxNorm(max_value=np.sqrt(hidden_dim)),
-            bias_constraint=keras.constraints.MaxNorm(max_value=np.sqrt(dimension)),
+            use_bias=False
         )
     )
 
