@@ -178,6 +178,7 @@ def test_compact(
                            np.all((process <= compact_set[:, 1][:, np.newaxis]), axis=0)
                        ) & (np.all(process >= compact_set[:, 0][:, np.newaxis], axis=0))
 
+        # Check irreducible error between difference quotients and drift
         for j, skip in enumerate([200, 100, 50, 20, 10, 5]):
             evaluated_drift = (
                                       coefficient.drift(
@@ -193,7 +194,7 @@ def test_compact(
                  - evaluated_drift[:, :-1]) ** 2,
                 axis=1,
             ))
-            deviations[i, j, :] = deviation
+            deviations[i, j, :] = deviation  # Save standard deviation of error
 
         inside_n = np.sum(mask_compact)  # Sum over the boolean mask
         result_array[i] = inside_n  # Save realization
